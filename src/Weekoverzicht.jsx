@@ -7,6 +7,7 @@ const KLEUR = { kop1: "#6FA8A7", kop2: "#3E7589", donker: "#2b2b2b", rand: "#e4e
 
 const DAGEN = ["Maandag", "Dinsdag", "Woensdag", "Donderdag", "Vrijdag", "Zaterdag", "Zondag"];
 const MAANDEN = ["jan", "feb", "mrt", "apr", "mei", "jun", "jul", "aug", "sep", "okt", "nov", "dec"];
+const MAANDEN_KORT = ["Jan", "Feb", "Mrt", "Apr", "Mei", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dec"];
 
 // ---- datum-hulpjes (week begint op maandag) -------------------------------
 const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -81,10 +82,12 @@ export default function Weekoverzicht({ gebruiker }) {
     () => Object.values(alles).reduce((s, d) => s + naarGetal(d.uren), 0),
     [alles]
   );
-  const dagenMetUren = useMemo(
-    () => weekDagen.filter((d) => naarGetal(alles[d.datum]?.uren) !== 0).length,
-    [weekDagen, alles]
-  );
+  const actiefJaar = ankerDatum.getFullYear();
+  const actieveMaandIndex = ankerDatum.getMonth();
+  const maandTotaal = useMemo(() => {
+    const prefix = `${actiefJaar}-${String(actieveMaandIndex + 1).padStart(2, "0")}`;
+    return Object.values(alles).reduce((s, d) => (String(d.datum).startsWith(prefix) ? s + naarGetal(d.uren) : s), 0);
+  }, [alles, actiefJaar, actieveMaandIndex]);
 
   const vandaag = ymd(new Date());
   const isDezeWeek = weekDagen.some((d) => d.datum === vandaag);
@@ -123,13 +126,15 @@ export default function Weekoverzicht({ gebruiker }) {
     setAnkerDatum(d);
   };
   const naarVandaag = () => setAnkerDatum(new Date());
+  const kiesMaand = (maandIndex) => setAnkerDatum(new Date(actiefJaar, maandIndex, 1));
+  const wijzigJaar = (delta) => setAnkerDatum(new Date(actiefJaar + delta, actieveMaandIndex, 1));
 
   const uitloggen = () => isSupabaseConfigured && supabase.auth.signOut();
 
   return (
     <div style={{ fontFamily: "Aptos, 'Segoe UI', system-ui, sans-serif", color: KLEUR.donker, background: KLEUR.bgZacht, minHeight: "100vh" }}>
       <header style={{ background: KLEUR.wit, borderBottom: `1px solid ${KLEUR.rand}`, padding: "20px 28px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16, maxWidth: 920, margin: "0 auto" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16, maxWidth: 1180, margin: "0 auto" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
             <img
               src="/spires-logo.png"
@@ -151,7 +156,31 @@ export default function Weekoverzicht({ gebruiker }) {
         </div>
       </header>
 
-      <main style={{ maxWidth: 920, margin: "0 auto", padding: "24px 28px 48px" }}>
+      <div style={{ display: "flex", alignItems: "flex-start", maxWidth: 1180, margin: "0 auto", gap: 4 }}>
+        <aside style={{ flex: "0 0 210px", padding: "26px 12px 24px 20px", position: "sticky", top: 0 }}>
+          <div style={{ fontSize: 11.5, fontWeight: 700, color: "#9aa7a8", textTransform: "uppercase", letterSpacing: "0.05em", padding: "0 6px 12px" }}>Periode</div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, padding: "0 2px" }}>
+            <button onClick={() => wijzigJaar(-1)} title="Vorig jaar" style={navBtnKlein}><ChevronLeft size={16} /></button>
+            <span style={{ fontSize: 17, fontWeight: 700, color: KLEUR.kop2 }}>{actiefJaar}</span>
+            <button onClick={() => wijzigJaar(1)} title="Volgend jaar" style={navBtnKlein}><ChevronRight size={16} /></button>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
+            {MAANDEN_KORT.map((m, i) => {
+              const actief = i === actieveMaandIndex;
+              return (
+                <button key={m} onClick={() => kiesMaand(i)} style={{
+                  border: `1px solid ${actief ? KLEUR.kop1 : KLEUR.rand}`,
+                  background: actief ? KLEUR.kop1 : "#fff",
+                  color: actief ? "#fff" : "#4a5a5b",
+                  borderRadius: 8, padding: "9px 0", fontSize: 13, fontWeight: actief ? 600 : 500,
+                  cursor: "pointer", fontFamily: "inherit",
+                }}>{m}</button>
+              );
+            })}
+          </div>
+        </aside>
+
+        <main style={{ flex: 1, minWidth: 0, padding: "24px 24px 48px 10px" }}>
         {foutmelding && (
           <div style={melding}>
             <AlertCircle size={18} style={{ flexShrink: 0, marginTop: 1 }} /><span>{foutmelding}</span>
@@ -183,7 +212,7 @@ export default function Weekoverzicht({ gebruiker }) {
           <>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16, marginBottom: 24 }}>
               <StatKaart icon={<Clock size={20} />} label="Overuren deze week" waarde={toonUren(weekTotaal)} />
-              <StatKaart icon={<CalendarDays size={20} />} label="Dagen met overuren" waarde={`${dagenMetUren} / 7`} />
+              <StatKaart icon={<CalendarDays size={20} />} label="Overuren deze maand" waarde={toonUren(maandTotaal)} />
               <StatKaart icon={<Sigma size={20} />} label="Totaal saldo (alles)" waarde={toonUren(saldoTotaal)} />
             </div>
 
@@ -254,7 +283,8 @@ export default function Weekoverzicht({ gebruiker }) {
             </p>
           </>
         )}
-      </main>
+        </main>
+      </div>
       <style>{`.spin{animation:s 1s linear infinite}@keyframes s{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
@@ -273,4 +303,5 @@ function StatKaart({ icon, label, waarde }) {
 const inputStijl = { padding: "9px 12px", border: `1px solid ${KLEUR.rand}`, borderRadius: 8, fontSize: 14, color: KLEUR.donker, background: "#fff", outline: "none", fontFamily: "inherit", boxSizing: "border-box" };
 const btnSecundair = { background: "#fff", color: KLEUR.kop2, border: `1px solid ${KLEUR.rand}`, borderRadius: 8, padding: "9px 16px", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" };
 const navBtn = { background: "#fff", color: KLEUR.kop2, border: `1px solid ${KLEUR.rand}`, borderRadius: 9, width: 38, height: 38, display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer" };
+const navBtnKlein = { background: "#fff", color: KLEUR.kop2, border: `1px solid ${KLEUR.rand}`, borderRadius: 8, width: 32, height: 32, display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer" };
 const melding = { display: "flex", gap: 10, background: "#f5e8e8", color: "#a04848", border: "1px solid #e6cccc", borderRadius: 10, padding: "12px 14px", fontSize: 13.5, marginBottom: 20, lineHeight: 1.45 };
