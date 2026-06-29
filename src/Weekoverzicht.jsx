@@ -7,7 +7,7 @@ const KLEUR = { kop1: "#6FA8A7", kop2: "#3E7589", donker: "#2b2b2b", rand: "#e4e
 
 const DAGEN = ["Maandag", "Dinsdag", "Woensdag", "Donderdag", "Vrijdag", "Zaterdag", "Zondag"];
 const MAANDEN = ["jan", "feb", "mrt", "apr", "mei", "jun", "jul", "aug", "sep", "okt", "nov", "dec"];
-const MAANDEN_KORT = ["Jan", "Feb", "Mrt", "Apr", "Mei", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dec"];
+const MAANDEN_VOL = ["Januari", "Februari", "Maart", "April", "Mei", "Juni", "Juli", "Augustus", "September", "Oktober", "November", "December"];
 
 // ---- datum-hulpjes (week begint op maandag) -------------------------------
 const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -164,16 +164,16 @@ export default function Weekoverzicht({ gebruiker }) {
             <span style={{ fontSize: 17, fontWeight: 700, color: KLEUR.kop2 }}>{actiefJaar}</span>
             <button onClick={() => wijzigJaar(1)} title="Volgend jaar" style={navBtnKlein}><ChevronRight size={16} /></button>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
-            {MAANDEN_KORT.map((m, i) => {
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {MAANDEN_VOL.map((m, i) => {
               const actief = i === actieveMaandIndex;
               return (
                 <button key={m} onClick={() => kiesMaand(i)} style={{
-                  border: `1px solid ${actief ? KLEUR.kop1 : KLEUR.rand}`,
+                  border: `1px solid ${actief ? KLEUR.kop1 : "transparent"}`,
                   background: actief ? KLEUR.kop1 : "#fff",
                   color: actief ? "#fff" : "#4a5a5b",
-                  borderRadius: 8, padding: "9px 0", fontSize: 13, fontWeight: actief ? 600 : 500,
-                  cursor: "pointer", fontFamily: "inherit",
+                  borderRadius: 8, padding: "10px 14px", fontSize: 14, fontWeight: actief ? 600 : 500,
+                  cursor: "pointer", fontFamily: "inherit", textAlign: "left", width: "100%",
                 }}>{m}</button>
               );
             })}
