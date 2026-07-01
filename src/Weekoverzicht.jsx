@@ -8,7 +8,7 @@ const KLEUR = { kop1: "#6FA8A7", kop2: "#3E7589", donker: "#2b2b2b", rand: "#e4e
 const DAGEN = ["Maandag", "Dinsdag", "Woensdag", "Donderdag", "Vrijdag", "Zaterdag", "Zondag"];
 const MAANDEN = ["jan", "feb", "mrt", "apr", "mei", "jun", "jul", "aug", "sep", "okt", "nov", "dec"];
 const MAANDEN_VOL = ["Januari", "Februari", "Maart", "April", "Mei", "Juni", "Juli", "Augustus", "September", "Oktober", "November", "December"];
-const PROJECTEN = ["Buitenwaard", "D'Coolenwaerd", "Voorbij de stolp", "Lemmer Noord", "Braken 2", "Avenhorn", "Overig", "Calculeren"];
+const PROJECTEN = ["Buitenwaard", "D'Coolenwaerd", "Voorbij de stolp", "Lemmer Noord", "Braken 2", "Avenhorn", "Overig", "Calculeren", "Vrij"];
 
 // ---- datum-hulpjes (week begint op maandag) -------------------------------
 const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -155,7 +155,7 @@ export default function Weekoverzicht({ gebruiker }) {
   // ---- uren: bewerken ----
   const voegRegelToe = async (datum) => {
     try {
-      const nieuw = await voegUrenregelToe({ datum, project: PROJECTEN[0], omschrijving: "", uren: 0 });
+      const nieuw = await voegUrenregelToe({ datum, project: "", omschrijving: "", uren: 0 });
       setUrenregels((v) => [...v, nieuw]);
     } catch {
       setUrenFout("Regel toevoegen mislukt.");
@@ -329,8 +329,9 @@ export default function Weekoverzicht({ gebruiker }) {
                         {regels.map((r) => (
                           <div key={r.id} style={{ display: "flex", gap: 8, alignItems: "center" }}>
                             <select value={r.project} onChange={(e) => { wijzigRegel(r.id, "project", e.target.value); bewaarRegel(r.id, { project: e.target.value }); }}
-                              style={{ ...inputStijl, flex: "0 0 190px", cursor: "pointer" }}>
-                              {PROJECTEN.map((p) => <option key={p} value={p}>{p}</option>)}
+                              style={{ ...inputStijl, flex: "0 0 190px", cursor: "pointer", color: r.project ? KLEUR.donker : "#9aa7a8" }}>
+                              <option value="">Kies…</option>
+                              {PROJECTEN.map((p) => <option key={p} value={p} style={{ color: KLEUR.donker }}>{p}</option>)}
                             </select>
                             <input type="text" value={r.omschrijving} placeholder="Waar heb je aan gewerkt?"
                               onChange={(e) => wijzigRegel(r.id, "omschrijving", e.target.value)}
