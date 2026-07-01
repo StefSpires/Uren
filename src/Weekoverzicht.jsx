@@ -111,8 +111,18 @@ export default function Weekoverzicht({ gebruiker }) {
     urenregels.forEach((r) => { (m[r.datum] = m[r.datum] || []).push(r); });
     return m;
   }, [urenregels]);
-  const urenWeekTotaal = useMemo(() => weekDagen.reduce((s, d) => s + (urenPerDag[d.datum] || []).reduce((a, r) => a + naarGetal(r.uren), 0), 0), [weekDagen, urenPerDag]);
+  const werkdagen = useMemo(() => weekDagen.filter((d) => !d.weekend), [weekDagen]); // ma–vr, geen weekend
+  const urenWeekTotaal = useMemo(() => werkdagen.reduce((s, d) => s + (urenPerDag[d.datum] || []).reduce((a, r) => a + naarGetal(r.uren), 0), 0), [werkdagen, urenPerDag]);
   const urenMaandTotaal = useMemo(() => urenregels.reduce((s, r) => (String(r.datum).startsWith(maandPrefix) ? s + naarGetal(r.uren) : s), 0), [urenregels, maandPrefix]);
+  // uren per project voor de gekozen maand (voor de widgets rechts)
+  const projectMaand = useMemo(() => {
+    const m = {};
+    PROJECTEN.forEach((p) => { m[p] = 0; });
+    urenregels.forEach((r) => {
+      if (String(r.datum).startsWith(maandPrefix)) m[r.project] = (m[r.project] || 0) + naarGetal(r.uren);
+    });
+    return PROJECTEN.map((p) => ({ project: p, uren: m[p] })).sort((a, b) => b.uren - a.uren);
+  }, [urenregels, maandPrefix]);
 
   const vandaag = ymd(new Date());
   const isDezeWeek = weekDagen.some((d) => d.datum === vandaag);
@@ -195,7 +205,7 @@ export default function Weekoverzicht({ gebruiker }) {
   return (
     <div style={{ fontFamily: "Aptos, 'Segoe UI', system-ui, sans-serif", color: KLEUR.donker, background: KLEUR.bgZacht, minHeight: "100vh" }}>
       <header style={{ background: KLEUR.wit, borderBottom: `1px solid ${KLEUR.rand}`, padding: "20px 28px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16, maxWidth: 1180, margin: "0 auto" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16, maxWidth: 1320, margin: "0 auto" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
             <img
               src="/spires-logo.png"
@@ -217,7 +227,7 @@ export default function Weekoverzicht({ gebruiker }) {
         </div>
       </header>
 
-      <div style={{ display: "flex", alignItems: "flex-start", maxWidth: 1180, margin: "0 auto", gap: 4 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", maxWidth: 1320, margin: "0 auto", gap: 4 }}>
         <aside style={{ flex: "0 0 210px", padding: "26px 12px 24px 20px", position: "sticky", top: 0 }}>
           <div style={{ fontSize: 11.5, fontWeight: 700, color: "#9aa7a8", textTransform: "uppercase", letterSpacing: "0.05em", padding: "0 6px 12px" }}>Periode</div>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, padding: "0 2px" }}>
@@ -291,7 +301,7 @@ export default function Weekoverzicht({ gebruiker }) {
               </div>
 
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                {weekDagen.map((d) => {
+                {werkdagen.map((d) => {
                   const regels = urenPerDag[d.datum] || [];
                   const dagtotaal = regels.reduce((s, r) => s + naarGetal(r.uren), 0);
                   const isVandaag = d.datum === vandaag;
@@ -434,6 +444,42 @@ export default function Weekoverzicht({ gebruiker }) {
             </>
           )}
         </main>
+
+        {isUren && !bezig && (
+          <aside style={{ flex: "0 0 250px", padding: "24px 20px 24px 8px", position: "sticky", top: 0 }}>
+            <div style={{ fontSize: 11.5, fontWeight: 700, color: "#9aa7a8", textTransform: "uppercase", letterSpacing: "0.05em", padding: "0 2px 12px" }}>
+              Per project · {MAANDEN_VOL[actieveMaandIndex]} {actiefJaar}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {(() => {
+                const maxUren = Math.max(1, ...projectMaand.map((p) => p.uren));
+                const totaal = projectMaand.reduce((s, p) => s + p.uren, 0);
+                if (totaal === 0) {
+                  return <div style={{ background: KLEUR.wit, border: `1px dashed ${KLEUR.rand}`, borderRadius: 12, padding: "18px 16px", fontSize: 13, color: "#9aa7a8", textAlign: "center" }}>Nog geen uren deze maand.</div>;
+                }
+                return (
+                  <>
+                    {projectMaand.filter((p) => p.uren > 0).map((p) => (
+                      <div key={p.project} style={{ background: KLEUR.wit, border: `1px solid ${KLEUR.rand}`, borderRadius: 12, padding: "12px 14px" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, marginBottom: 8 }}>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: KLEUR.kop2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.project}</span>
+                          <span style={{ fontSize: 14, fontWeight: 700, color: KLEUR.kop1, flexShrink: 0 }}>{komma(p.uren)} u</span>
+                        </div>
+                        <div style={{ height: 6, background: "#eef4f4", borderRadius: 20, overflow: "hidden" }}>
+                          <div style={{ width: `${(p.uren / maxUren) * 100}%`, height: "100%", background: KLEUR.kop1, borderRadius: 20 }} />
+                        </div>
+                      </div>
+                    ))}
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", background: "#f3f8f8", border: `1px solid ${KLEUR.rand}`, borderRadius: 12 }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: KLEUR.kop2 }}>Totaal maand</span>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: KLEUR.kop1 }}>{komma(totaal)} u</span>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          </aside>
+        )}
       </div>
       <style>{`.spin{animation:s 1s linear infinite}@keyframes s{to{transform:rotate(360deg)}}`}</style>
     </div>
