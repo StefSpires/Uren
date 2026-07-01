@@ -57,3 +57,84 @@ export async function slaDagOp(datum, uren, notitie) {
   else obj[datum] = { datum, uren: Number(uren) || 0, notitie: notitie || "" };
   lokaalSchrijf(obj);
 }
+
+// ============================================================
+//  Uren schrijven: meerdere regels per dag (project / omschrijving / uren).
+//  Cloud-tabel "urenregels", of lokaal onder de sleutel hieronder.
+// ============================================================
+const LS_UREN = "spires-urenregels";
+
+function urenLees() {
+  try {
+    const arr = JSON.parse(localStorage.getItem(LS_UREN) || "[]");
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
+  }
+}
+function urenSchrijf(arr) {
+  localStorage.setItem(LS_UREN, JSON.stringify(arr));
+}
+const schoon = (r) => ({
+  id: r.id,
+  datum: r.datum,
+  project: r.project || "",
+  omschrijving: r.omschrijving || "",
+  uren: Number(r.uren) || 0,
+});
+
+export async function haalAlleUren() {
+  if (isSupabaseConfigured) {
+    const { data, error } = await supabase
+      .from("urenregels")
+      .select("*")
+      .order("datum", { ascending: true })
+      .order("id", { ascending: true });
+    if (error) throw error;
+    return (data || []).map(schoon);
+  }
+  return urenLees().map(schoon);
+}
+
+export async function voegUrenregelToe({ datum, project, omschrijving, uren }) {
+  if (isSupabaseConfigured) {
+    const { data, error } = await supabase
+      .from("urenregels")
+      .insert({ datum, project, omschrijving, uren: Number(uren) || 0 })
+      .select()
+      .single();
+    if (error) throw error;
+    return schoon(data);
+  }
+  const regel = schoon({ id: `l-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, datum, project, omschrijving, uren });
+  const arr = urenLees();
+  arr.push(regel);
+  urenSchrijf(arr);
+  return regel;
+}
+
+export async function werkUrenregelBij(id, velden) {
+  if (isSupabaseConfigured) {
+    const { error } = await supabase
+      .from("urenregels")
+      .update({ project: velden.project, omschrijving: velden.omschrijving, uren: Number(velden.uren) || 0 })
+      .eq("id", id);
+    if (error) throw error;
+    return;
+  }
+  const arr = urenLees();
+  const i = arr.findIndex((r) => r.id === id);
+  if (i >= 0) {
+    arr[i] = schoon({ ...arr[i], ...velden });
+    urenSchrijf(arr);
+  }
+}
+
+export async function verwijderUrenregel(id) {
+  if (isSupabaseConfigured) {
+    const { error } = await supabase.from("urenregels").delete().eq("id", id);
+    if (error) throw error;
+    return;
+  }
+  urenSchrijf(urenLees().filter((r) => r.id !== id));
+}
