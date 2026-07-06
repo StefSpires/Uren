@@ -9,6 +9,7 @@ const DAGEN = ["Maandag", "Dinsdag", "Woensdag", "Donderdag", "Vrijdag", "Zaterd
 const MAANDEN = ["jan", "feb", "mrt", "apr", "mei", "jun", "jul", "aug", "sep", "okt", "nov", "dec"];
 const MAANDEN_VOL = ["Januari", "Februari", "Maart", "April", "Mei", "Juni", "Juli", "Augustus", "September", "Oktober", "November", "December"];
 const PROJECTEN = ["Buitenwaard", "D'Coolenwaerd", "Voorbij de stolp", "Lemmer Noord", "Braken 2", "Avenhorn", "Overig", "Calculeren", "Vrij"];
+const NIET_DECLARABEL = ["Overig", "Calculeren"]; // niet-declarabel; "Vrij" telt helemaal niet mee
 
 // ---- datum-hulpjes (week begint op maandag) -------------------------------
 const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -122,6 +123,18 @@ export default function Weekoverzicht({ gebruiker }) {
       if (String(r.datum).startsWith(maandPrefix)) m[r.project] = (m[r.project] || 0) + naarGetal(r.uren);
     });
     return PROJECTEN.map((p) => ({ project: p, uren: m[p] })).sort((a, b) => b.uren - a.uren);
+  }, [urenregels, maandPrefix]);
+  // declarabel = uren op een echt project ; niet-declarabel = Overig + Calculeren ; Vrij telt niet mee
+  const declStats = useMemo(() => {
+    let decl = 0, nietDecl = 0;
+    urenregels.forEach((r) => {
+      if (!String(r.datum).startsWith(maandPrefix)) return;
+      if (!r.project || r.project === "Vrij") return; // leeg + Vrij niet meetellen
+      if (NIET_DECLARABEL.includes(r.project)) nietDecl += naarGetal(r.uren);
+      else decl += naarGetal(r.uren);
+    });
+    const basis = decl + nietDecl;
+    return { decl, nietDecl, basis, pct: basis > 0 ? Math.round((decl / basis) * 100) : 0 };
   }, [urenregels, maandPrefix]);
 
   const vandaag = ymd(new Date());
@@ -479,6 +492,26 @@ export default function Weekoverzicht({ gebruiker }) {
                 );
               })()}
             </div>
+
+            <div style={{ fontSize: 11.5, fontWeight: 700, color: "#9aa7a8", textTransform: "uppercase", letterSpacing: "0.05em", padding: "22px 2px 12px" }}>
+              Declarabel · {MAANDEN_VOL[actieveMaandIndex]} {actiefJaar}
+            </div>
+            <div style={{ background: KLEUR.wit, border: `1px solid ${KLEUR.rand}`, borderRadius: 12, padding: "16px 16px 14px" }}>
+              {declStats.basis === 0 ? (
+                <div style={{ fontSize: 13, color: "#9aa7a8", textAlign: "center", padding: "4px 0" }}>Nog geen uren deze maand.</div>
+              ) : (
+                <>
+                  <div style={{ fontSize: 30, fontWeight: 700, color: KLEUR.kop1, lineHeight: 1 }}>{declStats.pct}%</div>
+                  <div style={{ fontSize: 12.5, color: "#8a9799", margin: "3px 0 12px" }}>declarabel deze maand</div>
+                  <div style={{ display: "flex", height: 8, borderRadius: 20, overflow: "hidden", background: "#eef4f4", marginBottom: 12 }}>
+                    <div style={{ width: `${declStats.pct}%`, background: KLEUR.kop1 }} />
+                    <div style={{ width: `${100 - declStats.pct}%`, background: "#d9b45f" }} />
+                  </div>
+                  <LegendaRegel kleur={KLEUR.kop1} label="Declarabel" waarde={`${komma(declStats.decl)} u`} />
+                  <LegendaRegel kleur="#d9b45f" label="Niet-declarabel" waarde={`${komma(declStats.nietDecl)} u`} sub="Overig + Calculeren" />
+                </>
+              )}
+            </div>
           </aside>
         )}
       </div>
@@ -493,6 +526,19 @@ function StatKaart({ icon, label, waarde }) {
       <div style={{ color: KLEUR.kop1, marginBottom: 8 }}>{icon}</div>
       <div style={{ fontSize: 24, fontWeight: 700, color: KLEUR.kop2 }}>{waarde}</div>
       <div style={{ fontSize: 12.5, color: "#8a9799", marginTop: 2 }}>{label}</div>
+    </div>
+  );
+}
+
+function LegendaRegel({ kleur, label, waarde, sub }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0" }}>
+      <span style={{ width: 9, height: 9, borderRadius: 3, background: kleur, flexShrink: 0 }} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, color: KLEUR.kop2, fontWeight: 500 }}>{label}</div>
+        {sub && <div style={{ fontSize: 11, color: "#9aa7a8" }}>{sub}</div>}
+      </div>
+      <span style={{ fontSize: 13, fontWeight: 700, color: KLEUR.kop2, flexShrink: 0 }}>{waarde}</span>
     </div>
   );
 }
