@@ -10,6 +10,7 @@ const MAANDEN = ["jan", "feb", "mrt", "apr", "mei", "jun", "jul", "aug", "sep", 
 const MAANDEN_VOL = ["Januari", "Februari", "Maart", "April", "Mei", "Juni", "Juli", "Augustus", "September", "Oktober", "November", "December"];
 const PROJECTEN = ["Buitenwaard", "D'Coolenwaerd", "Voorbij de stolp", "Lemmer Noord", "Braken 2", "Avenhorn", "Overig", "Calculeren", "Vrij"];
 const NIET_DECLARABEL = ["Overig", "Calculeren"]; // niet-declarabel; "Vrij" telt helemaal niet mee
+const TARIEF_PER_KM = 0.25; // kilometervergoeding in euro per km
 
 // ---- datum-hulpjes (week begint op maandag) -------------------------------
 const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -38,6 +39,7 @@ const komma = (n) => (Math.round((Number(n) || 0) * 100) / 100).toString().repla
 // overuren: met +/- teken ; gewone uren: gewoon platte weergave
 const toonSaldo = (n) => `${(Number(n) || 0) > 0 ? "+" : ""}${komma(n)} u`;
 const toonUren = (n) => `${komma(n)} u`;
+const toonEuro = (n) => "€ " + (Number(n) || 0).toLocaleString("nl-NL", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 // wat in het invoerveld staat: een opgeslagen getal tonen we met komma,
 // terwijl je tikt laten we de ruwe tekst staan; 0 / leeg blijft leeg
 const toonInvoer = (v) => {
@@ -436,9 +438,9 @@ export default function Weekoverzicht({ gebruiker }) {
             /* ================= KILOMETERS ================= */
             <>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16, marginBottom: 24 }}>
-                <StatKaart icon={<Car size={20} />} label="Kilometers deze week" waarde={`${komma(kmWeekTotaal)} km`} />
-                <StatKaart icon={<CalendarDays size={20} />} label="Kilometers deze maand" waarde={`${komma(kmMaandTotaal)} km`} />
-                <StatKaart icon={<Sigma size={20} />} label="Totaal (alles)" waarde={`${komma(kmSaldo)} km`} />
+                <StatKaart icon={<Car size={20} />} label="Kilometers deze week" waarde={`${komma(kmWeekTotaal)} km`} sub={toonEuro(kmWeekTotaal * TARIEF_PER_KM)} />
+                <StatKaart icon={<CalendarDays size={20} />} label="Kilometers deze maand" waarde={`${komma(kmMaandTotaal)} km`} sub={toonEuro(kmMaandTotaal * TARIEF_PER_KM)} />
+                <StatKaart icon={<Sigma size={20} />} label="Totaal (alles)" waarde={`${komma(kmSaldo)} km`} sub={toonEuro(kmSaldo * TARIEF_PER_KM)} />
               </div>
 
               <div style={{ background: KLEUR.wit, border: `1px solid ${KLEUR.rand}`, borderRadius: 14, overflow: "hidden" }}>
@@ -496,12 +498,12 @@ export default function Weekoverzicht({ gebruiker }) {
 
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 18px", borderTop: `2px solid ${KLEUR.rand}`, background: "#f3f8f8" }}>
                   <span style={{ fontSize: 14, fontWeight: 600, color: KLEUR.kop2 }}>Totaal deze week</span>
-                  <span style={{ fontSize: 17, fontWeight: 700, color: KLEUR.kop1 }}>{komma(kmWeekTotaal)} km</span>
+                  <span style={{ fontSize: 17, fontWeight: 700, color: KLEUR.kop1 }}>{komma(kmWeekTotaal)} km · {toonEuro(kmWeekTotaal * TARIEF_PER_KM)}</span>
                 </div>
               </div>
 
               <p style={{ fontSize: 12.5, color: "#9aa7a8", marginTop: 14, lineHeight: 1.5 }}>
-                Vul per dag het aantal gereden kilometers in, met eventueel een korte route/notitie. Wijzigingen worden automatisch opgeslagen.
+                Vul per dag het aantal gereden kilometers in, met eventueel een korte route/notitie. De vergoeding wordt berekend met € {komma(TARIEF_PER_KM)} per km. Wijzigingen worden automatisch opgeslagen.
                 {!isSupabaseConfigured && " Je gegevens staan nu lokaal in deze browser opgeslagen."}
               </p>
             </>
@@ -643,11 +645,12 @@ export default function Weekoverzicht({ gebruiker }) {
   );
 }
 
-function StatKaart({ icon, label, waarde }) {
+function StatKaart({ icon, label, waarde, sub }) {
   return (
     <div style={{ background: KLEUR.wit, border: `1px solid ${KLEUR.rand}`, borderRadius: 12, padding: "16px 18px" }}>
       <div style={{ color: KLEUR.kop1, marginBottom: 8 }}>{icon}</div>
       <div style={{ fontSize: 24, fontWeight: 700, color: KLEUR.kop2 }}>{waarde}</div>
+      {sub && <div style={{ fontSize: 14, fontWeight: 600, color: KLEUR.kop1, marginTop: 2 }}>{sub}</div>}
       <div style={{ fontSize: 12.5, color: "#8a9799", marginTop: 2 }}>{label}</div>
     </div>
   );
