@@ -281,10 +281,15 @@ export default function Weekoverzicht({ gebruiker }) {
   const bezig = isUren ? (urenLaden && !urenGeladen) : isKm ? (kmLaden && !kmGeladen) : laden;
   const actieveFout = isUren ? urenFout : isKm ? kmFout : foutmelding;
 
+  // in de maandweergave verbergen we lege dagen (0 / niets ingevuld) om ruimte te sparen
+  const heeftKm = (datum) => naarGetal(kmAlles[datum]?.km) !== 0 || (kmAlles[datum]?.notitie || "").trim() !== "";
+  const heeftOveruren = (datum) => naarGetal(alles[datum]?.uren) !== 0 || (alles[datum]?.notitie || "").trim() !== "";
+  const heeftUren = (datum) => (urenPerDag[datum] || []).length > 0;
+
   // welke dagen tonen we, afhankelijk van week/maand-weergave
-  const urenDagen = isMaand ? maandDagen.filter((d) => !d.weekend) : werkdagen;
-  const overurenDagen = isMaand ? maandDagen : weekDagen;
-  const kmDagen = isMaand ? maandDagen : weekDagen;
+  const urenDagen = isMaand ? maandDagen.filter((d) => !d.weekend && heeftUren(d.datum)) : werkdagen;
+  const overurenDagen = isMaand ? maandDagen.filter((d) => heeftOveruren(d.datum)) : weekDagen;
+  const kmDagen = isMaand ? maandDagen.filter((d) => heeftKm(d.datum)) : weekDagen;
   const maandNaam = MAANDEN_VOL[actieveMaandIndex].toLowerCase();
   const totaalLabel = isMaand ? `Totaal ${maandNaam} ${actiefJaar}` : "Totaal deze week";
   const kmTotaalToon = isMaand ? kmMaandTotaal : kmWeekTotaal;
@@ -470,6 +475,11 @@ export default function Weekoverzicht({ gebruiker }) {
                     </div>
                   );
                 })}
+                {isMaand && urenDagen.length === 0 && (
+                  <div style={{ background: KLEUR.wit, border: `1px dashed ${KLEUR.rand}`, borderRadius: 12, padding: "26px 16px", textAlign: "center", color: "#9aa7a8", fontSize: 13.5 }}>
+                    Geen uren geschreven in {maandNaam} {actiefJaar}.
+                  </div>
+                )}
               </div>
 
               <p style={{ fontSize: 12.5, color: "#9aa7a8", marginTop: 14, lineHeight: 1.5 }}>
@@ -539,6 +549,9 @@ export default function Weekoverzicht({ gebruiker }) {
                   );
                 })}
 
+                {isMaand && kmDagen.length === 0 && (
+                  <div style={{ padding: "26px 18px", textAlign: "center", color: "#9aa7a8", fontSize: 13.5 }}>Geen kilometers ingevuld in {maandNaam} {actiefJaar}.</div>
+                )}
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 18px", borderTop: `2px solid ${KLEUR.rand}`, background: "#f3f8f8" }}>
                   <span style={{ fontSize: 14, fontWeight: 600, color: KLEUR.kop2 }}>{totaalLabel}</span>
                   <span style={{ fontSize: 17, fontWeight: 700, color: KLEUR.kop1 }}>{komma(kmTotaalToon)} km · {toonEuro(kmTotaalToon * TARIEF_PER_KM)}</span>
@@ -612,6 +625,9 @@ export default function Weekoverzicht({ gebruiker }) {
                   );
                 })}
 
+                {isMaand && overurenDagen.length === 0 && (
+                  <div style={{ padding: "26px 18px", textAlign: "center", color: "#9aa7a8", fontSize: 13.5 }}>Geen overuren ingevuld in {maandNaam} {actiefJaar}.</div>
+                )}
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 18px", borderTop: `2px solid ${KLEUR.rand}`, background: "#f3f8f8" }}>
                   <span style={{ fontSize: 14, fontWeight: 600, color: KLEUR.kop2 }}>{totaalLabel}</span>
                   <span style={{ fontSize: 17, fontWeight: 700, color: overurenTotaalToon < 0 ? "#a04848" : KLEUR.kop1 }}>{toonSaldo(overurenTotaalToon)}</span>
