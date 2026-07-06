@@ -7,6 +7,8 @@ keuzemenu bovenaan tussen twee onderdelen:
   dag voeg je regels toe met drie kolommen: **project · omschrijving · uren**.
 - **Overuren schrijven** — vul per dag je **extra** uren in bovenop de normale
   8 uur, met een optionele notitie.
+- **Kilometers** — registreer per dag je gereden kilometers met een optionele
+  route/notitie.
 
 Links staat een menu om snel per **jaar en maand** te navigeren. Alles wordt
 automatisch opgeslagen, met week- en maandtotalen.
@@ -29,9 +31,10 @@ Wil je je uren in de cloud bewaren — zodat ze ook op je telefoon en andere
 apparaten staan, net als het CRM — dan koppel je Supabase:
 
 1. Maak (of gebruik) een Supabase-project.
-2. Open **SQL Editor → New query** en voer beide tabellen uit (plak + **Run**):
-   [`supabase/overuren.sql`](supabase/overuren.sql) (overuren) en
-   [`supabase/urenregels.sql`](supabase/urenregels.sql) (uren schrijven).
+2. Open **SQL Editor → New query** en voer de drie tabellen uit (plak + **Run**):
+   [`supabase/overuren.sql`](supabase/overuren.sql) (overuren),
+   [`supabase/urenregels.sql`](supabase/urenregels.sql) (uren schrijven) en
+   [`supabase/kilometers.sql`](supabase/kilometers.sql) (kilometers).
 3. Maak in Supabase een gebruiker aan (Authentication → Users) met je e-mail
    en een wachtwoord.
 4. Zet de sleutels in een bestand `.env.local` in deze map:

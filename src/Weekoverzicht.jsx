@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { supabase, isSupabaseConfigured } from "./supabaseClient";
-import { haalAlleDagen, slaDagOp, haalAlleUren, voegUrenregelToe, werkUrenregelBij, verwijderUrenregel } from "./storage";
-import { ChevronLeft, ChevronRight, Clock, CalendarDays, Sigma, Loader2, AlertCircle, LogOut, Check, Plus, Trash2, Briefcase } from "lucide-react";
+import { haalAlleDagen, slaDagOp, haalAlleUren, voegUrenregelToe, werkUrenregelBij, verwijderUrenregel, haalAlleKm, slaKmOp } from "./storage";
+import { ChevronLeft, ChevronRight, Clock, CalendarDays, Sigma, Loader2, AlertCircle, LogOut, Check, Plus, Trash2, Briefcase, Car } from "lucide-react";
 
 const KLEUR = { kop1: "#6FA8A7", kop2: "#3E7589", donker: "#2b2b2b", rand: "#e4e9ea", bgZacht: "#f5f8f8", wit: "#ffffff" };
 
@@ -61,6 +61,12 @@ export default function Weekoverzicht({ gebruiker }) {
   const [urenLaden, setUrenLaden] = useState(false);
   const [urenFout, setUrenFout] = useState("");
 
+  // --- kilometers (één regel per dag) ---
+  const [kmAlles, setKmAlles] = useState({});
+  const [kmGeladen, setKmGeladen] = useState(false);
+  const [kmLaden, setKmLaden] = useState(false);
+  const [kmFout, setKmFout] = useState("");
+
   const [ankerDatum, setAnkerDatum] = useState(() => new Date());
 
   useEffect(() => {
@@ -87,6 +93,23 @@ export default function Weekoverzicht({ gebruiker }) {
         : "Kon de opgeslagen uren niet inladen."))
       .finally(() => setUrenLaden(false));
   }, [modus, urenGeladen]);
+
+  // kilometers pas inladen zodra je die modus voor het eerst opent
+  useEffect(() => {
+    if (modus !== "km" || kmGeladen) return;
+    setKmLaden(true);
+    haalAlleKm()
+      .then((rijen) => {
+        const map = {};
+        rijen.forEach((r) => { map[r.datum] = { datum: r.datum, km: Number(r.km) || 0, notitie: r.notitie || "" }; });
+        setKmAlles(map);
+        setKmGeladen(true);
+      })
+      .catch(() => setKmFout(isSupabaseConfigured
+        ? 'Kon de kilometers niet inladen. Controleer of de tabel "kilometers" in Supabase bestaat (voer supabase/kilometers.sql uit).'
+        : "Kon de opgeslagen kilometers niet inladen."))
+      .finally(() => setKmLaden(false));
+  }, [modus, kmGeladen]);
 
   const maandag = useMemo(() => maandagVan(ankerDatum), [ankerDatum]);
   const weekDagen = useMemo(() => {
@@ -137,6 +160,11 @@ export default function Weekoverzicht({ gebruiker }) {
     return { decl, nietDecl, basis, pct: basis > 0 ? Math.round((decl / basis) * 100) : 0 };
   }, [urenregels, maandPrefix]);
 
+  // kilometer-totalen
+  const kmWeekTotaal = useMemo(() => weekDagen.reduce((s, d) => s + naarGetal(kmAlles[d.datum]?.km), 0), [weekDagen, kmAlles]);
+  const kmMaandTotaal = useMemo(() => Object.values(kmAlles).reduce((s, d) => (String(d.datum).startsWith(maandPrefix) ? s + naarGetal(d.km) : s), 0), [kmAlles, maandPrefix]);
+  const kmSaldo = useMemo(() => Object.values(kmAlles).reduce((s, d) => s + naarGetal(d.km), 0), [kmAlles]);
+
   const vandaag = ymd(new Date());
   const isDezeWeek = weekDagen.some((d) => d.datum === vandaag);
   const titelRange = () => {
@@ -162,6 +190,26 @@ export default function Weekoverzicht({ gebruiker }) {
       setTimeout(() => setZojuistOpgeslagen((d) => (d === datum ? null : d)), 1500);
     } catch {
       setFoutmelding("Opslaan mislukt. Probeer het opnieuw.");
+    }
+  };
+
+  // ---- kilometers: bewerken ----
+  const wijzigKm = (datum, veld, waarde) => {
+    setKmAlles((vorig) => {
+      const huidig = vorig[datum] || { datum, km: 0, notitie: "" };
+      return { ...vorig, [datum]: { ...huidig, [veld]: waarde } };
+    });
+  };
+  const bewaarKm = async (datum) => {
+    const rij = kmAlles[datum] || { km: 0, notitie: "" };
+    const km = naarGetal(rij.km);
+    try {
+      await slaKmOp(datum, km, rij.notitie);
+      setKmAlles((vorig) => ({ ...vorig, [datum]: { datum, km, notitie: rij.notitie || "" } }));
+      setZojuistOpgeslagen(datum);
+      setTimeout(() => setZojuistOpgeslagen((d) => (d === datum ? null : d)), 1500);
+    } catch {
+      setKmFout("Opslaan mislukt. Probeer het opnieuw.");
     }
   };
 
@@ -213,7 +261,9 @@ export default function Weekoverzicht({ gebruiker }) {
   const uitloggen = () => isSupabaseConfigured && supabase.auth.signOut();
 
   const isUren = modus === "uren";
-  const bezig = isUren ? (urenLaden && !urenGeladen) : laden;
+  const isKm = modus === "km";
+  const bezig = isUren ? (urenLaden && !urenGeladen) : isKm ? (kmLaden && !kmGeladen) : laden;
+  const actieveFout = isUren ? urenFout : isKm ? kmFout : foutmelding;
 
   return (
     <div style={{ fontFamily: "Aptos, 'Segoe UI', system-ui, sans-serif", color: KLEUR.donker, background: KLEUR.bgZacht, minHeight: "100vh" }}>
@@ -265,9 +315,9 @@ export default function Weekoverzicht({ gebruiker }) {
         </aside>
 
         <main style={{ flex: 1, minWidth: 0, padding: "24px 24px 48px 10px" }}>
-          {/* keuze: uren of overuren schrijven */}
-          <div style={{ display: "inline-flex", background: KLEUR.wit, border: `1px solid ${KLEUR.rand}`, borderRadius: 10, padding: 3, gap: 3, marginBottom: 20 }}>
-            {[["uren", "Uren schrijven"], ["overuren", "Overuren schrijven"]].map(([key, label]) => (
+          {/* keuze: uren / overuren / kilometers */}
+          <div style={{ display: "inline-flex", background: KLEUR.wit, border: `1px solid ${KLEUR.rand}`, borderRadius: 10, padding: 3, gap: 3, marginBottom: 20, flexWrap: "wrap" }}>
+            {[["uren", "Uren schrijven"], ["overuren", "Overuren schrijven"], ["km", "Kilometers"]].map(([key, label]) => (
               <button key={key} onClick={() => setModus(key)} style={{
                 border: "none", borderRadius: 8, cursor: "pointer", padding: "9px 20px",
                 fontSize: 14, fontWeight: 600, fontFamily: "inherit",
@@ -277,9 +327,9 @@ export default function Weekoverzicht({ gebruiker }) {
             ))}
           </div>
 
-          {(isUren ? urenFout : foutmelding) && (
+          {actieveFout && (
             <div style={melding}>
-              <AlertCircle size={18} style={{ flexShrink: 0, marginTop: 1 }} /><span>{isUren ? urenFout : foutmelding}</span>
+              <AlertCircle size={18} style={{ flexShrink: 0, marginTop: 1 }} /><span>{actieveFout}</span>
             </div>
           )}
 
@@ -379,6 +429,79 @@ export default function Weekoverzicht({ gebruiker }) {
               <p style={{ fontSize: 12.5, color: "#9aa7a8", marginTop: 14, lineHeight: 1.5 }}>
                 Schrijf per dag je uren weg over de projecten (standaard 8 uur per werkdag). Kies het project, geef een korte omschrijving en het aantal uren.
                 Halve uren mag met een komma (bijv. <code>1,5</code>). Wijzigingen worden automatisch opgeslagen.
+                {!isSupabaseConfigured && " Je gegevens staan nu lokaal in deze browser opgeslagen."}
+              </p>
+            </>
+          ) : isKm ? (
+            /* ================= KILOMETERS ================= */
+            <>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16, marginBottom: 24 }}>
+                <StatKaart icon={<Car size={20} />} label="Kilometers deze week" waarde={`${komma(kmWeekTotaal)} km`} />
+                <StatKaart icon={<CalendarDays size={20} />} label="Kilometers deze maand" waarde={`${komma(kmMaandTotaal)} km`} />
+                <StatKaart icon={<Sigma size={20} />} label="Totaal (alles)" waarde={`${komma(kmSaldo)} km`} />
+              </div>
+
+              <div style={{ background: KLEUR.wit, border: `1px solid ${KLEUR.rand}`, borderRadius: 14, overflow: "hidden" }}>
+                {weekDagen.map((d, i) => {
+                  const rij = kmAlles[d.datum] || { km: "", notitie: "" };
+                  const isVandaag = d.datum === vandaag;
+                  const opgeslagen = zojuistOpgeslagen === d.datum;
+                  return (
+                    <div key={d.datum} style={{
+                      display: "flex", alignItems: "center", gap: 14, padding: "14px 18px",
+                      borderTop: i === 0 ? "none" : `1px solid ${KLEUR.rand}`,
+                      background: d.weekend ? "#fafcfc" : KLEUR.wit,
+                    }}>
+                      <div style={{ flex: "0 0 150px", minWidth: 0 }}>
+                        <div style={{ fontSize: 15, fontWeight: 600, color: isVandaag ? KLEUR.kop1 : KLEUR.kop2, display: "flex", alignItems: "center", gap: 7 }}>
+                          {d.naam}
+                          {isVandaag && <span style={{ fontSize: 10.5, fontWeight: 700, color: "#fff", background: KLEUR.kop1, borderRadius: 20, padding: "1px 7px", textTransform: "uppercase", letterSpacing: "0.04em" }}>vandaag</span>}
+                        </div>
+                        <div style={{ fontSize: 12.5, color: "#9aa7a8", marginTop: 1 }}>{d.dagNr} {d.maand}</div>
+                      </div>
+
+                      <div style={{ flex: "0 0 130px", position: "relative" }}>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={toonInvoer(rij.km)}
+                          onChange={(e) => wijzigKm(d.datum, "km", e.target.value)}
+                          onBlur={() => bewaarKm(d.datum)}
+                          onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+                          placeholder="0"
+                          style={{ ...inputStijl, width: "100%", textAlign: "center", paddingRight: 34, fontWeight: 600, color: KLEUR.kop2 }}
+                        />
+                        <span style={{ position: "absolute", right: 12, top: 9, fontSize: 13, color: "#9aa7a8", pointerEvents: "none" }}>km</span>
+                      </div>
+
+                      <div style={{ flex: "1 1 0", minWidth: 0, position: "relative" }}>
+                        <input
+                          type="text"
+                          value={rij.notitie || ""}
+                          onChange={(e) => wijzigKm(d.datum, "notitie", e.target.value)}
+                          onBlur={() => bewaarKm(d.datum)}
+                          onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+                          placeholder="Notitie / route (optioneel)…"
+                          style={{ ...inputStijl, width: "100%", paddingRight: 34 }}
+                        />
+                        {opgeslagen && (
+                          <span style={{ position: "absolute", right: 11, top: 10, color: "#3f8f5a", display: "inline-flex" }} title="Opgeslagen">
+                            <Check size={16} />
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 18px", borderTop: `2px solid ${KLEUR.rand}`, background: "#f3f8f8" }}>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: KLEUR.kop2 }}>Totaal deze week</span>
+                  <span style={{ fontSize: 17, fontWeight: 700, color: KLEUR.kop1 }}>{komma(kmWeekTotaal)} km</span>
+                </div>
+              </div>
+
+              <p style={{ fontSize: 12.5, color: "#9aa7a8", marginTop: 14, lineHeight: 1.5 }}>
+                Vul per dag het aantal gereden kilometers in, met eventueel een korte route/notitie. Wijzigingen worden automatisch opgeslagen.
                 {!isSupabaseConfigured && " Je gegevens staan nu lokaal in deze browser opgeslagen."}
               </p>
             </>

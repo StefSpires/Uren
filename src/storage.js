@@ -59,6 +59,59 @@ export async function slaDagOp(datum, uren, notitie) {
 }
 
 // ============================================================
+//  Kilometers: één regel per dag (km + notitie), net als overuren.
+//  Cloud-tabel "kilometers", of lokaal onder de sleutel hieronder.
+// ============================================================
+const LS_KM = "spires-kilometers";
+
+function kmLees() {
+  try {
+    const obj = JSON.parse(localStorage.getItem(LS_KM) || "{}");
+    return obj && typeof obj === "object" ? obj : {};
+  } catch {
+    return {};
+  }
+}
+function kmSchrijf(obj) {
+  localStorage.setItem(LS_KM, JSON.stringify(obj));
+}
+
+export async function haalAlleKm() {
+  if (isSupabaseConfigured) {
+    const { data, error } = await supabase
+      .from("kilometers")
+      .select("*")
+      .order("datum", { ascending: true });
+    if (error) throw error;
+    return data || [];
+  }
+  return Object.values(kmLees()).sort((a, b) => (a.datum < b.datum ? -1 : 1));
+}
+
+// Eén dag opslaan (overschrijft de bestaande regel). Leeg (0 km én geen notitie) = verwijderen.
+export async function slaKmOp(datum, km, notitie) {
+  const leeg = (!km || Number(km) === 0) && !(notitie && notitie.trim());
+
+  if (isSupabaseConfigured) {
+    if (leeg) {
+      const { error } = await supabase.from("kilometers").delete().eq("datum", datum);
+      if (error) throw error;
+      return;
+    }
+    const { error } = await supabase
+      .from("kilometers")
+      .upsert({ datum, km: Number(km) || 0, notitie: notitie || null }, { onConflict: "datum" });
+    if (error) throw error;
+    return;
+  }
+
+  const obj = kmLees();
+  if (leeg) delete obj[datum];
+  else obj[datum] = { datum, km: Number(km) || 0, notitie: notitie || "" };
+  kmSchrijf(obj);
+}
+
+// ============================================================
 //  Uren schrijven: meerdere regels per dag (project / omschrijving / uren).
 //  Cloud-tabel "urenregels", of lokaal onder de sleutel hieronder.
 // ============================================================
