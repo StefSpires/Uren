@@ -49,7 +49,8 @@ const toonInvoer = (v) => {
 };
 
 export default function Weekoverzicht({ gebruiker }) {
-  const [modus, setModus] = useState("uren"); // "uren" | "overuren"
+  const [modus, setModus] = useState("uren"); // "uren" | "overuren" | "km"
+  const [scope, setScope] = useState("week"); // "week" | "maand"
 
   // --- overuren-gegevens (één regel per dag) ---
   const [alles, setAlles] = useState({});
@@ -125,6 +126,18 @@ export default function Weekoverzicht({ gebruiker }) {
   const actiefJaar = ankerDatum.getFullYear();
   const actieveMaandIndex = ankerDatum.getMonth();
   const maandPrefix = `${actiefJaar}-${String(actieveMaandIndex + 1).padStart(2, "0")}`;
+
+  // alle dagen van de gekozen maand (voor het maandoverzicht)
+  const maandDagen = useMemo(() => {
+    const dagen = [];
+    const laatste = new Date(actiefJaar, actieveMaandIndex + 1, 0).getDate();
+    for (let dag = 1; dag <= laatste; dag++) {
+      const d = new Date(actiefJaar, actieveMaandIndex, dag);
+      const i = (d.getDay() + 6) % 7; // 0 = maandag
+      dagen.push({ naam: DAGEN[i], datum: ymd(d), dagNr: dag, maand: MAANDEN[actieveMaandIndex], weekend: i >= 5 });
+    }
+    return dagen;
+  }, [actiefJaar, actieveMaandIndex]);
 
   // overuren-totalen
   const weekTotaal = useMemo(() => weekDagen.reduce((s, d) => s + naarGetal(alles[d.datum]?.uren), 0), [weekDagen, alles]);
@@ -264,8 +277,18 @@ export default function Weekoverzicht({ gebruiker }) {
 
   const isUren = modus === "uren";
   const isKm = modus === "km";
+  const isMaand = scope === "maand";
   const bezig = isUren ? (urenLaden && !urenGeladen) : isKm ? (kmLaden && !kmGeladen) : laden;
   const actieveFout = isUren ? urenFout : isKm ? kmFout : foutmelding;
+
+  // welke dagen tonen we, afhankelijk van week/maand-weergave
+  const urenDagen = isMaand ? maandDagen.filter((d) => !d.weekend) : werkdagen;
+  const overurenDagen = isMaand ? maandDagen : weekDagen;
+  const kmDagen = isMaand ? maandDagen : weekDagen;
+  const maandNaam = MAANDEN_VOL[actieveMaandIndex].toLowerCase();
+  const totaalLabel = isMaand ? `Totaal ${maandNaam} ${actiefJaar}` : "Totaal deze week";
+  const kmTotaalToon = isMaand ? kmMaandTotaal : kmWeekTotaal;
+  const overurenTotaalToon = isMaand ? maandTotaal : weekTotaal;
 
   return (
     <div style={{ fontFamily: "Aptos, 'Segoe UI', system-ui, sans-serif", color: KLEUR.donker, background: KLEUR.bgZacht, minHeight: "100vh" }}>
@@ -335,20 +358,41 @@ export default function Weekoverzicht({ gebruiker }) {
             </div>
           )}
 
-          {/* week-navigatie */}
+          {/* navigatie + week/maand-weergave */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 20 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <button onClick={() => verzetWeek(-1)} title="Vorige week" style={navBtn}><ChevronLeft size={18} /></button>
-              <div style={{ textAlign: "center", minWidth: 230 }}>
-                <div style={{ fontSize: 18, fontWeight: 700, color: KLEUR.kop2 }}>Week {weeknummer(maandag)}</div>
-                <div style={{ fontSize: 13, color: "#8a9799" }}>{titelRange()}</div>
+            {isMaand ? (
+              <div style={{ minWidth: 230 }}>
+                <div style={{ fontSize: 18, fontWeight: 700, color: KLEUR.kop2 }}>{MAANDEN_VOL[actieveMaandIndex]} {actiefJaar}</div>
+                <div style={{ fontSize: 13, color: "#8a9799" }}>Kies links een andere maand</div>
               </div>
-              <button onClick={() => verzetWeek(1)} title="Volgende week" style={navBtn}><ChevronRight size={18} /></button>
+            ) : (
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <button onClick={() => verzetWeek(-1)} title="Vorige week" style={navBtn}><ChevronLeft size={18} /></button>
+                <div style={{ textAlign: "center", minWidth: 230 }}>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: KLEUR.kop2 }}>Week {weeknummer(maandag)}</div>
+                  <div style={{ fontSize: 13, color: "#8a9799" }}>{titelRange()}</div>
+                </div>
+                <button onClick={() => verzetWeek(1)} title="Volgende week" style={navBtn}><ChevronRight size={18} /></button>
+              </div>
+            )}
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              {!isMaand && (
+                <button onClick={naarVandaag} disabled={isDezeWeek}
+                  style={{ ...btnSecundair, opacity: isDezeWeek ? 0.5 : 1, cursor: isDezeWeek ? "default" : "pointer" }}>
+                  Deze week
+                </button>
+              )}
+              <div style={{ display: "inline-flex", background: KLEUR.wit, border: `1px solid ${KLEUR.rand}`, borderRadius: 10, padding: 3, gap: 3 }}>
+                {[["week", "Week"], ["maand", "Maand"]].map(([key, label]) => (
+                  <button key={key} onClick={() => setScope(key)} style={{
+                    border: "none", borderRadius: 8, cursor: "pointer", padding: "8px 16px",
+                    fontSize: 13.5, fontWeight: 600, fontFamily: "inherit",
+                    background: scope === key ? KLEUR.kop1 : "transparent",
+                    color: scope === key ? "#fff" : "#5a6a6b",
+                  }}>{label}</button>
+                ))}
+              </div>
             </div>
-            <button onClick={naarVandaag} disabled={isDezeWeek}
-              style={{ ...btnSecundair, opacity: isDezeWeek ? 0.5 : 1, cursor: isDezeWeek ? "default" : "pointer" }}>
-              Deze week
-            </button>
           </div>
 
           {bezig ? (
@@ -366,7 +410,7 @@ export default function Weekoverzicht({ gebruiker }) {
               </div>
 
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                {werkdagen.map((d) => {
+                {urenDagen.map((d) => {
                   const regels = urenPerDag[d.datum] || [];
                   const dagtotaal = regels.reduce((s, r) => s + naarGetal(r.uren), 0);
                   const isVandaag = d.datum === vandaag;
@@ -440,11 +484,10 @@ export default function Weekoverzicht({ gebruiker }) {
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16, marginBottom: 24 }}>
                 <StatKaart icon={<Car size={20} />} label="Kilometers deze week" waarde={`${komma(kmWeekTotaal)} km`} sub={toonEuro(kmWeekTotaal * TARIEF_PER_KM)} />
                 <StatKaart icon={<CalendarDays size={20} />} label="Kilometers deze maand" waarde={`${komma(kmMaandTotaal)} km`} sub={toonEuro(kmMaandTotaal * TARIEF_PER_KM)} />
-                <StatKaart icon={<Sigma size={20} />} label="Totaal (alles)" waarde={`${komma(kmSaldo)} km`} sub={toonEuro(kmSaldo * TARIEF_PER_KM)} />
               </div>
 
               <div style={{ background: KLEUR.wit, border: `1px solid ${KLEUR.rand}`, borderRadius: 14, overflow: "hidden" }}>
-                {weekDagen.map((d, i) => {
+                {kmDagen.map((d, i) => {
                   const rij = kmAlles[d.datum] || { km: "", notitie: "" };
                   const isVandaag = d.datum === vandaag;
                   const opgeslagen = zojuistOpgeslagen === d.datum;
@@ -497,8 +540,8 @@ export default function Weekoverzicht({ gebruiker }) {
                 })}
 
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 18px", borderTop: `2px solid ${KLEUR.rand}`, background: "#f3f8f8" }}>
-                  <span style={{ fontSize: 14, fontWeight: 600, color: KLEUR.kop2 }}>Totaal deze week</span>
-                  <span style={{ fontSize: 17, fontWeight: 700, color: KLEUR.kop1 }}>{komma(kmWeekTotaal)} km · {toonEuro(kmWeekTotaal * TARIEF_PER_KM)}</span>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: KLEUR.kop2 }}>{totaalLabel}</span>
+                  <span style={{ fontSize: 17, fontWeight: 700, color: KLEUR.kop1 }}>{komma(kmTotaalToon)} km · {toonEuro(kmTotaalToon * TARIEF_PER_KM)}</span>
                 </div>
               </div>
 
@@ -517,7 +560,7 @@ export default function Weekoverzicht({ gebruiker }) {
               </div>
 
               <div style={{ background: KLEUR.wit, border: `1px solid ${KLEUR.rand}`, borderRadius: 14, overflow: "hidden" }}>
-                {weekDagen.map((d, i) => {
+                {overurenDagen.map((d, i) => {
                   const rij = alles[d.datum] || { uren: "", notitie: "" };
                   const isVandaag = d.datum === vandaag;
                   const opgeslagen = zojuistOpgeslagen === d.datum;
@@ -570,8 +613,8 @@ export default function Weekoverzicht({ gebruiker }) {
                 })}
 
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 18px", borderTop: `2px solid ${KLEUR.rand}`, background: "#f3f8f8" }}>
-                  <span style={{ fontSize: 14, fontWeight: 600, color: KLEUR.kop2 }}>Totaal deze week</span>
-                  <span style={{ fontSize: 17, fontWeight: 700, color: weekTotaal < 0 ? "#a04848" : KLEUR.kop1 }}>{toonSaldo(weekTotaal)}</span>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: KLEUR.kop2 }}>{totaalLabel}</span>
+                  <span style={{ fontSize: 17, fontWeight: 700, color: overurenTotaalToon < 0 ? "#a04848" : KLEUR.kop1 }}>{toonSaldo(overurenTotaalToon)}</span>
                 </div>
               </div>
 
